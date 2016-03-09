@@ -1,103 +1,88 @@
-Heroku Buildpack for Node.js
-============================
+# Heroku Buildpack for Node.js
 
-This is a minor edit of the the official [Heroku buildpack](http://devcenter.heroku.com/articles/buildpacks) for Node.js apps. We forked the repository in order to provide a simple solution to allow pulling npm modules from private github repositories without checking in passwords or other sensitive credentials into source control
+![nodesjs](https://cloud.githubusercontent.com/assets/51578/8882955/3f0c3980-3219-11e5-8666-bc9c926a7356.jpg)
 
-How it Works Differently
-------------------------
-This buildpack looks for a specific config value set through heroku config: ```$GIT_SSH_KEY```. If present, the buildpack expects the base64 encoded contents of a private key whose public key counterpart has been registered with github on a github account with access to any private repositories needed by the application.  It decodes the contents into a file, launches ssh-agent and registers that keyfile, prior to executing ```npm install```.  Once npm install is finished, it cleans up the environment and file system of the key contents.
+This is the official [Heroku buildpack](http://devcenter.heroku.com/articles/buildpacks) for Node.js apps.
 
-How to Use:
------------
-* Generate a key: ```ssh-keygen -t rsa -C "your_email@example.com"``` (Enter no passphrase. This buildpack does not support keys with passphrases)
-* Add the public key to github: ```pbcopy < ~/.ssh/id_rsa.pub``` and paste the results into the github admin
-* Add the private key to your heroku app's config: ```cat id_rsa | base64 | pbcopy```, then ```heroku config:set GIT_SSH_KEY=<paste_here> --app your-app-name```
-* Setup your app to use this buildpack as described below
+[![Build Status](https://travis-ci.org/heroku/heroku-buildpack-nodejs.svg)](https://travis-ci.org/heroku/heroku-buildpack-nodejs)
 
+## Documentation
 
-
-How it Works Identically to the Official Buildpack
---------------------------------------------------
-
-Here's an overview of what this buildpack does:
-
-- Uses the [semver.io](https://semver.io) webservice to find the latest version of node that satisfies the [engines.node semver range](https://npmjs.org/doc/json.html#engines) in your package.json.
-- Allows any recent version of node to be used, including [pre-release versions](https://semver.io/node.json).
-- Uses an [S3 caching proxy](https://github.com/heroku/s3pository#readme) of nodejs.org for faster downloads of the node binary.
-- Discourages use of dangerous semver ranges like `*` and `>0.10`.
-- Uses the version of `npm` that comes bundled with `node`.
-- Puts `node` and `npm` on the `PATH` so they can be executed with [heroku run](https://devcenter.heroku.com/articles/one-off-dynos#an-example-one-off-dyno).
-- Caches the `node_modules` directory across builds for fast deploys.
-- Doesn't use the cache if `node_modules` is checked into version control.
-- Runs `npm rebuild` if `node_modules` is checked into version control.
-- Always runs `npm install` to ensure [npm script hooks](https://npmjs.org/doc/misc/npm-scripts.html) are executed.
-- Always runs `npm prune` after restoring cached modules to ensure cleanup of unused dependencies.
-
-For more technical details, see the [heavily-commented compile script](https://github.com/heroku/heroku-buildpack-nodejs/blob/master/bin/compile).
-
-
-Documentation
--------------
-
-For more information about using Node.js and buildpacks on Heroku, see these Dev Center articles:
+For more information about using this Node.js buildpack on Heroku, see these Dev Center articles:
 
 - [Heroku Node.js Support](https://devcenter.heroku.com/articles/nodejs-support)
 - [Getting Started with Node.js on Heroku](https://devcenter.heroku.com/articles/nodejs)
+
+For more general information about buildpacks on Heroku:
+
 - [Buildpacks](https://devcenter.heroku.com/articles/buildpacks)
 - [Buildpack API](https://devcenter.heroku.com/articles/buildpack-api)
 
+## Locking to a buildpack version
 
-Legacy Compatibility
---------------------
+In production, you frequently want to lock all of your dependencies - including
+buildpacks - to a specific version. That way, you can regularly update and
+test them, upgrading with confidence.
 
-For most Node.js apps this buildpack should work just fine. If, however, you're unable to deploy using this new version of the buildpack, you can get your app working again by using the legacy branch:
+First, find the version you want from
+[the list of buildpack versions](https://github.com/heroku/heroku-buildpack-nodejs/releases).
+Then, specify that version with `buildpacks:set`:
 
 ```
-heroku config:set BUILDPACK_URL=https://github.com/heroku/heroku-buildpack-nodejs#legacy -a my-app
-git commit -am "empty" --allow-empty # force a git commit
-git push heroku master
+heroku buildpacks:set https://github.com/heroku/heroku-buildpack-nodejs#v83 -a my-app
 ```
 
-Then please open a support ticket at [help.heroku.com](https://help.heroku.com/) so we can diagnose and get your app running on the default buildpack.
+If you have trouble upgrading to the latest version of the buildpack, please
+open a support ticket at [help.heroku.com](https://help.heroku.com/) so we can assist.
 
-Hacking
--------
+### Chain Node with multiple buildpacks
 
-To make changes to this buildpack, fork it on Github. Push up changes to your fork, then create a new Heroku app to test it, or configure an existing app to use your buildpack:
+This buildpack automatically exports node, npm, and any node_modules binaries
+into the `$PATH` for easy use in subsequent buildpacks.
+
+## Feedback
+
+Having trouble? Dig it? Feature request?
+
+- [help.heroku.com](https://help.heroku.com/)
+- [@hunterloftis](http://twitter.com/hunterloftis)
+- [github issues](https://github.com/heroku/heroku-buildpack-nodejs/issues)
+
+## Hacking
+
+To make changes to this buildpack, fork it on Github.
+Push up changes to your fork, then create a new Heroku app to test it,
+or configure an existing app to use your buildpack:
 
 ```
 # Create a new Heroku app that uses your buildpack
 heroku create --buildpack <your-github-url>
 
 # Configure an existing Heroku app to use your buildpack
-heroku config:set BUILDPACK_URL=<your-github-url>
+heroku buildpacks:set <your-github-url>
 
 # You can also use a git branch!
-heroku config:set BUILDPACK_URL=<your-github-url>#your-branch
+heroku buildpacks:set <your-github-url>#your-branch
 ```
 
-For more detailed information about testing buildpacks, see [CONTRIBUTING.md](CONTRIBUTING.md)
+## Tests
 
+The buildpack tests use [Docker](https://www.docker.com/) to simulate
+Heroku's Cedar and Cedar-14 containers.
 
-Testing
--------
-
-[Anvil](https://github.com/ddollar/anvil) is a generic build server for Heroku.
-
-```
-gem install anvil-cli
-```
-
-The [heroku-anvil CLI plugin](https://github.com/ddollar/heroku-anvil) is a wrapper for anvil.
+To run the test suite:
 
 ```
-heroku plugins:install https://github.com/ddollar/heroku-anvil
+make test
 ```
 
-The [ddollar/test](https://github.com/ddollar/buildpack-test) buildpack runs `bin/test` on your app/buildpack.
+Or to just test in cedar or cedar-14:
 
 ```
-heroku build -b ddollar/test # -b can also point to a local directory
+make test-cedar-10
+make test-cedar-14
 ```
 
-For more info on testing, see [Best Practices for Testing Buildpacks](https://discussion.heroku.com/t/best-practices-for-testing-buildpacks/294) on the Heroku discussion forum.
+The tests are run via the vendored
+[shunit2](http://shunit2.googlecode.com/svn/trunk/source/2.1/doc/shunit2.html)
+test framework.
